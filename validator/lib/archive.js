@@ -67,7 +67,7 @@ async function validateCentralDirectoryHeaderAndGetFileContents(fd, buffer, expe
         (1 << 13);  // No encrypted central directory
 
     if (disallowed_flags_mask & header.bitflags) {
-        throw Error(`Zip has disallowed bitflags set in Central Directory Header: 0b${(disallowed_flags_mask & general_bits).toString(2)}`);
+        throw Error(`Zip has disallowed bitflags set in Central Directory Header: 0b${(disallowed_flags_mask & header.bitflags).toString(2)}`);
     }
 
     header.comp_method = buffer.readUInt16LE(10);
