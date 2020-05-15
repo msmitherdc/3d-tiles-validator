@@ -50,8 +50,8 @@ const argv = yargs
         },
         validateIndex: {
             alias: 'vi',
-            describe: 'Validate 3tz index file.',
-            default: false,
+            describe: 'Validate the index file.',
+            default: true,
             type: 'boolean'
         }
     }).parse(args);

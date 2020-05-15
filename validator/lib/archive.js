@@ -222,41 +222,48 @@ async function listIndex(zipIndex, range) {
 }
 
 function slowValidateIndex(zipIndex, zipFilePath) {
-    console.time("thorough validate index");
-    let valid = true;
-    const zip = new StreamZip({
-        file: zipFilePath,
-        storeEntries: false
-    });
-    try {
-        zip.on('error', err => { throw Error(err) });
-        zip.on('ready', () => {
-            console.log('Entries read: ' + zip.entriesCount);
-            zip.close();
-            console.log("Closed zip");
-        });
-        zip.on('entry', entry => {
-            if (entry.isFile && entry.name !== "@3dtilesIndex1@") {
-                //console.log(`Validating index entry for ${entry.name}`);
-                let hash = crypto.createHash('md5').update(entry.name).digest();
-                let index = zipIndexFind(zipIndex, hash);
-                if (index === -1) {
-                    throw Error(`${entry.name} - ${hash} not found in index.`);
-                } else {
-                    const indexEntryOffset = zipIndex[index].offset;
-                    if (entry.offset != indexEntryOffset) {
-                        throw Error(`${entry.name} - ${hash} had incorrect offset ${indexEntryOffset}, expected ${entry.offset}`)
+    return new Promise(
+        (resolve, reject) => {
+            let zipFileEntriesCount = 0;
+            let zip = new StreamZip({
+                file: zipFilePath,
+                storeEntries: false
+            });
+            zip.on('error', (err) => {
+                reject(err);
+            })
+            zip.on('ready', () => {
+                // console.log(`Total zip entries: ${zip.entriesCount} file entries: ${zipFileEntriesCount}`);
+                zip.close();
+    
+                if (zipIndex.length !== zipFileEntriesCount) {
+                    reject(`Zip index has too few entries, expected ${zipFileEntriesCount} but got ${zipIndex.length}.`);
+                }
+    
+                resolve(true);
+            });
+            zip.on('entry', entry => {
+                if (entry.isFile && entry.name !== "@3dtilesIndex1@") {
+                    zipFileEntriesCount++;
+                    //console.log(`Validating index entry for ${entry.name}`);
+                    let hash = crypto.createHash('md5').update(entry.name).digest();
+                    let index = zipIndexFind(zipIndex, hash);
+                    if (index === -1) {
+                        reject(`${entry.name} - ${hash} not found in index.`);
+                    } else {
+                        const indexEntryOffset = zipIndex[index].offset;
+                        if (entry.offset != indexEntryOffset) {
+                            reject(`${entry.name} - ${hash} had incorrect offset ${indexEntryOffset}, expected ${entry.offset}`);
+                        }
                     }
                 }
-            }
-        });
-    }
-    catch (err) {
-        valid = false;
-    }
-
-    console.timeEnd("thorough validate index");
-    return valid;
+            });
+        }
+    )
+    .catch(err => { 
+        /* console.error(`Zip index validation failed: ${err}`); */
+        return false; 
+    });
 }
 
 async function validateIndex(zipIndex, zipFilePath, quick) {
@@ -308,10 +315,10 @@ async function validateIndex(zipIndex, zipFilePath, quick) {
     }
 
     if (!quick && valid) {
-        valid = slowValidateIndex(zipIndex, zipFilePath);
+        valid = await slowValidateIndex(zipIndex, zipFilePath);
     }
 
-    console.log(`Index is ${valid ? "valid" : "invalid"}`);
+    console.log(`Zip index is ${valid ? "valid" : "invalid"}`);
     console.timeEnd("validate index");
     return valid;
 }
@@ -417,7 +424,10 @@ async function getIndexReader(filePath, performIndexValidation)
 {
     const index = await readIndex(filePath);
     if (performIndexValidation) {
-        await validateIndex(index, filePath);
+        const indexIsValid = await validateIndex(index, filePath);
+        if (!indexIsValid) {
+            throw Error();
+        }
     }
 
     let fd = await fsExtra.open(filePath, 'r');
