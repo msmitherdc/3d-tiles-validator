@@ -47,6 +47,12 @@ const argv = yargs
             describe: 'Only validate tileset files, for quick shallow validation.',
             default: false,
             type: 'boolean'
+        },
+        validateIndex: {
+            alias: 'vi',
+            describe: 'Validate 3tz index file.',
+            default: false,
+            type: 'boolean'
         }
     }).parse(args);
 
@@ -62,17 +68,27 @@ async function validate(argv) {
 
     if (path.extname(filePath) === '.3tz') {
         try {
-            reader = await archive.getIndexReader(filePath);
+            reader = await archive.getIndexReader(filePath, argv.validateIndex);
             filePath = utility.normalizePath(argv.innerPath);
         }
-        catch(e) {
+        catch(err) {
             console.error(`Failed to read ${path.basename(filePath)} as indexed archive, attempting to read as plain zip`);
-            reader = await archive.getZipReader(filePath);
-            filePath = argv.innerPath;
+            try {
+                reader = await archive.getZipReader(filePath);
+                filePath = argv.innerPath;
+            }
+            catch(err) {
+                return;
+            }
         }
     } else if (path.extname(filePath) === '.zip') {
-        reader = await archive.getZipReader(filePath);
-        filePath = utility.normalizePath(argv.innerPath);
+        try {
+            reader = await archive.getZipReader(filePath);
+            filePath = utility.normalizePath(argv.innerPath);
+        }
+        catch(err) {
+            return;
+        }
     }
 
     try {

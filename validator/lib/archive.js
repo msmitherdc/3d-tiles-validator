@@ -1,6 +1,7 @@
 'use strict';
 const Cesium = require('cesium');
 const fsExtra = require('fs-extra');
+const path = require('path');
 const StreamZip = require('node-stream-zip');
 const crypto = require('crypto');
 const bufferToJson = require('./bufferToJson');
@@ -85,10 +86,10 @@ async function validateCentralDirectoryHeaderAndGetFileContents(fd, buffer, expe
     header.int_attrib = buffer.readUInt16LE(36);
     header.ext_attrib = buffer.readUInt32LE(38);
 
-    let filename = buffer.toString('utf8', ZIP_CENTRAL_DIRECTORY_STATIC_SIZE, ZIP_CENTRAL_DIRECTORY_STATIC_SIZE + header.filename_size);
+    let filename = buffer.toString('utf8', ZIP_CENTRAL_DIRECTORY_STATIC_SIZE, ZIP_CENTRAL_DIRECTORY_STATIC_SIZE + header.filename_size);    
     if (filename !== expectedFilename)
     {
-        throw Error(`Local File Header filename was ${filename}, expected ${expectedFilename}`);
+        throw Error(`Central Directory File Header filename was ${filename}, expected ${expectedFilename}`);
     }
 
     header.offset = buffer.readUInt32LE(42);
@@ -220,7 +221,46 @@ async function listIndex(zipIndex, range) {
     return;
 }
 
-async function validateIndex(zipIndex, zipFilePath) {
+function slowValidateIndex(zipIndex, zipFilePath) {
+    console.time("thorough validate index");
+    let valid = true;
+    const zip = new StreamZip({
+        file: zipFilePath,
+        storeEntries: false
+    });
+    try {
+        zip.on('error', err => { throw Error(err) });
+        zip.on('ready', () => {
+            console.log('Entries read: ' + zip.entriesCount);
+            zip.close();
+            console.log("Closed zip");
+        });
+        zip.on('entry', entry => {
+            if (entry.isFile && entry.name !== "@3dtilesIndex1@") {
+                //console.log(`Validating index entry for ${entry.name}`);
+                let hash = crypto.createHash('md5').update(entry.name).digest();
+                let index = zipIndexFind(zipIndex, hash);
+                if (index === -1) {
+                    throw Error(`${entry.name} - ${hash} not found in index.`);
+                } else {
+                    const indexEntryOffset = zipIndex[index].offset;
+                    if (entry.offset != indexEntryOffset) {
+                        throw Error(`${entry.name} - ${hash} had incorrect offset ${indexEntryOffset}, expected ${entry.offset}`)
+                    }
+                }
+            }
+        });
+    }
+    catch (err) {
+        valid = false;
+    }
+
+    console.timeEnd("thorough validate index");
+    return valid;
+}
+
+async function validateIndex(zipIndex, zipFilePath, quick) {
+    console.time("validate index");
     let valid = true;
     const numItems = zipIndex.length;
     if (numItems > 1) {
@@ -256,7 +296,6 @@ async function validateIndex(zipIndex, zipFilePath) {
         valid = false;
         console.error(`Index has no key for the root tileset`);
     } else {
-        console.log(`found root tileset at index: ${rootIndex}`);
         let fd = await fsExtra.open(zipFilePath, "r");
         try {
             await ReadZipLocalFileHeader(fd, zipIndex[rootIndex].offset, "tileset.json");
@@ -268,7 +307,12 @@ async function validateIndex(zipIndex, zipFilePath) {
         fsExtra.close(fd);
     }
 
+    if (!quick && valid) {
+        valid = slowValidateIndex(zipIndex, zipFilePath);
+    }
+
     console.log(`Index is ${valid ? "valid" : "invalid"}`);
+    console.timeEnd("validate index");
     return valid;
 }
 
@@ -347,6 +391,10 @@ async function readIndex(inputFile, outputFile, indexFilename = "@3dtilesIndex1@
                 return parseIndexData(indexFileDataBuffer);
             }
         })
+        .catch(err => {
+            console.error(err.message);
+            throw err;
+        })
         .finally(() => {
             fsExtra.close(fd);
             console.timeEnd('readIndex');
@@ -365,22 +413,24 @@ async function ReadZipLocalFileHeader(fd, offset, path)
     return header;
 }
 
-async function getIndexReader(filePath)
+async function getIndexReader(filePath, performIndexValidation)
 {
     const index = await readIndex(filePath);
+    if (performIndexValidation) {
+        await validateIndex(index, filePath);
+    }
+
     let fd = await fsExtra.open(filePath, 'r');
 
     let readData = async (path) => {
         let normalizedPath = util.normalizePath(path);
         let match = await searchIndex(index, normalizedPath);
         if (match !== undefined) {
-            //console.log(match);
             let header = await ReadZipLocalFileHeader(fd, match.offset, path);
             let fileDataOffset = Number(match.offset) + ZIP_LOCAL_FILE_HEADER_STATIC_SIZE + header.filename_size + header.extra_size;
             let fileContentsBuffer = Buffer.alloc(header.comp_size);
             //console.log(`Fetching data at offset ${fileDataOffset} size: ${header.comp_size}`);
             let data = await fsExtra.read(fd, fileContentsBuffer, 0, header.comp_size, fileDataOffset);
-            //console.log(data.buffer.toString());
             return data.buffer;
         }
         throw Error(path);
@@ -404,20 +454,23 @@ async function getZipReader(filePath)
                     storeEntries: true
                 });
                 streamzip.on('error', (err) => {
-                    console.log(`Error: ${err}`);
+                    //console.log(`Error: ${err}`);
                     reject(err);
                 })
                 streamzip.on('ready', () => {
                     resolve(streamzip);
-                });        
+                });
             }
-        );
+        )
+        .catch(() => { console.error(`Failed to read ${path.basename(filePath)} as zip archive`) });
 
     let zip = await zipPromise;
-            
+    if (!zip) {
+        throw Error();
+    }
+
     return {
         readBinary: (path) => {
-            //console.log(`zipReader.readTile(${path})`);
             return zip.entryDataSync(path);
         },
         readJson: (path) => {
