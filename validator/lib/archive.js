@@ -34,24 +34,24 @@ const ZIP_CENTRAL_DIRECTORY_STATIC_SIZE = 46;
 
 function getLastCentralDirectoryEntry(fd, stat) {
     const bytesToRead = 320;
-    let buffer = Buffer.alloc(bytesToRead);
-    let offset = stat.size - bytesToRead;
-    let length = bytesToRead;
+    const buffer = Buffer.alloc(bytesToRead);
+    const offset = stat.size - bytesToRead;
+    const length = bytesToRead;
     return fsExtra.read(fd, buffer, 0, length, offset)
         .then(obj => {
         let start = 0, end = 0;
         for (let i = obj.buffer.length - 4; i > 0; i--) {
-            let val = obj.buffer.readUInt32LE(i);
-            if (val == ZIP_END_OF_CENTRAL_DIRECTORY_HEADER_SIG) {
+            const val = obj.buffer.readUInt32LE(i);
+            if (val === ZIP_END_OF_CENTRAL_DIRECTORY_HEADER_SIG) {
                 end = i;
             }
-            if (val == ZIP_START_OF_CENTRAL_DIRECTORY_HEADER_SIG) {
+            if (val === ZIP_START_OF_CENTRAL_DIRECTORY_HEADER_SIG) {
                 start = i;
                 break;
             }
         }
 
-        if (start != end) {
+        if (start !== end) {
             return obj.buffer.slice(start);
         }
 
@@ -61,9 +61,9 @@ function getLastCentralDirectoryEntry(fd, stat) {
 
 async function validateCentralDirectoryHeaderAndGetFileContents(fd, buffer, expectedFilename)
 {
-    let header = {};
+    const header = {};
     header.signature = buffer.readUInt32LE(0);
-    if (header.signature != ZIP_START_OF_CENTRAL_DIRECTORY_HEADER_SIG) {
+    if (header.signature !== ZIP_START_OF_CENTRAL_DIRECTORY_HEADER_SIG) {
         throw Error(`Bad central directory file header signature: ${header.signature}`);
     }
     header.version_madeby = buffer.readUInt16LE(4);
@@ -96,7 +96,7 @@ async function validateCentralDirectoryHeaderAndGetFileContents(fd, buffer, expe
     header.int_attrib = buffer.readUInt16LE(36);
     header.ext_attrib = buffer.readUInt32LE(38);
 
-    let filename = buffer.toString('utf8', ZIP_CENTRAL_DIRECTORY_STATIC_SIZE, ZIP_CENTRAL_DIRECTORY_STATIC_SIZE + header.filename_size);    
+    const filename = buffer.toString('utf8', ZIP_CENTRAL_DIRECTORY_STATIC_SIZE, ZIP_CENTRAL_DIRECTORY_STATIC_SIZE + header.filename_size);
     if (filename !== expectedFilename)
     {
         throw Error(`Central Directory File Header filename was ${filename}, expected ${expectedFilename}`);
@@ -104,14 +104,14 @@ async function validateCentralDirectoryHeaderAndGetFileContents(fd, buffer, expe
 
     header.offset = buffer.readUInt32LE(42);
     // if we get this offset, then the offset is stored in the 64 bit extra field
-    if (header.offset == 0xFFFFFFFF) {
+    if (header.offset === 0xFFFFFFFF) {
         let offset64Found = false;
-        let endExtrasOffset = ZIP_CENTRAL_DIRECTORY_STATIC_SIZE + header.filename_size + header.extra_size;
+        const endExtrasOffset = ZIP_CENTRAL_DIRECTORY_STATIC_SIZE + header.filename_size + header.extra_size;
         let currentOffset = ZIP_CENTRAL_DIRECTORY_STATIC_SIZE + header.filename_size;
         while (!offset64Found && currentOffset < endExtrasOffset) {
-          let extra_tag = buffer.readUInt16LE(currentOffset);
-          let extra_size = buffer.readUInt16LE(currentOffset + 2);
-          if (extra_tag == ZIP64_EXTENDED_INFORMATION_EXTRA_SIG && extra_size == 8) {
+          const extra_tag = buffer.readUInt16LE(currentOffset);
+          const extra_size = buffer.readUInt16LE(currentOffset + 2);
+          if (extra_tag === ZIP64_EXTENDED_INFORMATION_EXTRA_SIG && extra_size == 8) {
             header.offset = buffer.readBigUInt64LE(currentOffset + 4);
             offset64Found = true;
             //console.log(`found 64bit relative offset: ${header.offset}`);
@@ -121,14 +121,14 @@ async function validateCentralDirectoryHeaderAndGetFileContents(fd, buffer, expe
           }
         }
         if (!offset64Found) {
-          throw Error("No zip64 extended offset found");
+          throw Error('No zip64 extended offset found');
         }
     }
 
     const localFileHeaderSize = ZIP_LOCAL_FILE_HEADER_STATIC_SIZE + header.filename_size +
         + 48 /* over-estimated local file header extra field size, to try and read all data in one go */
         + header.comp_size;
-    let localFileHeaderBuffer = Buffer.alloc(localFileHeaderSize);
+    const localFileHeaderBuffer = Buffer.alloc(localFileHeaderSize);
 
     //console.log(`Reading local file header from offset: ${header.offset}`);
     return fsExtra.read(fd, localFileHeaderBuffer, 0, localFileHeaderSize, Number(header.offset))
@@ -138,9 +138,9 @@ async function validateCentralDirectoryHeaderAndGetFileContents(fd, buffer, expe
 
 function parseLocalFileHeaderAndValidateFilename(buffer, expectedFilename)
 {
-    let header = {};
+    const header = {};
     header.signature = buffer.readUInt32LE(0);
-    if (header.signature != 0x04034b50) {
+    if (header.signature !== 0x04034b50) {
         throw Error(`Bad local file header: ${header.signature}`);
     }
 
@@ -155,15 +155,15 @@ function parseLocalFileHeaderAndValidateFilename(buffer, expectedFilename)
     header.filename_size = buffer.readUInt16LE(26);
     header.extra_size = buffer.readUInt16LE(28);
 
-    let filename = buffer.toString('utf8', ZIP_LOCAL_FILE_HEADER_STATIC_SIZE, ZIP_LOCAL_FILE_HEADER_STATIC_SIZE + header.filename_size);
+    const filename = buffer.toString('utf8', ZIP_LOCAL_FILE_HEADER_STATIC_SIZE, ZIP_LOCAL_FILE_HEADER_STATIC_SIZE + header.filename_size);
     if (filename !== expectedFilename)
     {
         throw Error(`Local File Header filename was ${filename}, expected ${expectedFilename}`);
     }
 
-    let compressedSize = header.comp_size;
+    const compressedSize = header.comp_size;
     if (compressedSize === 0) {
-        throw Error(`Zip Local File Headers must have non-zero file sizes set.`);
+        throw Error('Zip Local File Headers must have non-zero file sizes set.');
     }
     return header;
 }
@@ -171,16 +171,12 @@ function parseLocalFileHeaderAndValidateFilename(buffer, expectedFilename)
 function md5LessThan(md5hashA, md5hashB) {
     const aLo = md5hashA.readBigUInt64LE();
     const bLo = md5hashB.readBigUInt64LE();
-    if (aLo == bLo) {
+    if (aLo === bLo) {
         const aHi = md5hashA.readBigUInt64LE(8);
         const bHi = md5hashB.readBigUInt64LE(8);
         return aHi < bHi;
     }
     return aLo < bLo;
-}
-
-function md5comp(a, b) {
-    return md5LessThan(a.md5hash, b.md5hash) ? -1 : 1;
 }
 
 function md5AsUInt64(md5hashBuffer) {
@@ -191,15 +187,18 @@ function zipIndexFind(zipIndex, searchHash) {
     let low = 0;
     let high = zipIndex.length - 1;
     while(low <= high) {
-        let mid = Math.floor(low + (high - low) / 2);
+        const mid = Math.floor(low + (high - low) / 2);
         const entry = zipIndex[mid];
         //console.log(`mid: ${mid} entry: ${entry.md5hash.toString('hex')}`);
-        if(entry.md5hash.compare(searchHash) === 0)
+        if(entry.md5hash.compare(searchHash) === 0) {
             return mid;
-        else if (md5LessThan(zipIndex[mid].md5hash, searchHash))
+        }
+        else if (md5LessThan(zipIndex[mid].md5hash, searchHash)) {
             low = mid + 1;
-        else
+        }
+        else {
             high = mid - 1;
+        }
     }
 
     return -1;
@@ -235,34 +234,34 @@ function slowValidateIndex(zipIndex, zipFilePath) {
     return new Promise(
         (resolve, reject) => {
             let zipFileEntriesCount = 0;
-            let zip = new StreamZip({
+            const zip = new StreamZip({
                 file: zipFilePath,
                 storeEntries: false
             });
             zip.on('error', (err) => {
                 reject(err);
-            })
+            });
             zip.on('ready', () => {
                 // console.log(`Total zip entries: ${zip.entriesCount} file entries: ${zipFileEntriesCount}`);
                 zip.close();
-    
+
                 if (zipIndex.length !== zipFileEntriesCount) {
                     reject(`Zip index has too few entries, expected ${zipFileEntriesCount} but got ${zipIndex.length}.`);
                 }
-    
+
                 resolve(true);
             });
             zip.on('entry', entry => {
-                if (entry.isFile && entry.name !== "@3dtilesIndex1@") {
+                if (entry.isFile && entry.name !== '@3dtilesIndex1@') {
                     zipFileEntriesCount++;
                     //console.log(`Validating index entry for ${entry.name}`);
-                    let hash = crypto.createHash('md5').update(entry.name).digest();
-                    let index = zipIndexFind(zipIndex, hash);
+                    const hash = crypto.createHash('md5').update(entry.name).digest();
+                    const index = zipIndexFind(zipIndex, hash);
                     if (index === -1) {
                         reject(`${entry.name} - ${hash} not found in index.`);
                     } else {
                         const indexEntryOffset = zipIndex[index].offset;
-                        if (entry.offset != indexEntryOffset) {
+                        if (entry.offset !== indexEntryOffset) {
                             reject(`${entry.name} - ${hash} had incorrect offset ${indexEntryOffset}, expected ${entry.offset}`);
                         }
                     }
@@ -270,18 +269,18 @@ function slowValidateIndex(zipIndex, zipFilePath) {
             });
         }
     )
-    .catch(err => { 
+    .catch(err => {
         /* console.error(`Zip index validation failed: ${err}`); */
-        return false; 
+        return false;
     });
 }
 
 async function validateIndex(zipIndex, zipFilePath, quick) {
-    console.time("validate index");
+    console.time('validate index');
     let valid = true;
     const numItems = zipIndex.length;
     if (numItems > 1) {
-        let errors = {
+        const errors = {
             collisions: []
         };
         for (let i = 1; i < numItems; i++) {
@@ -301,21 +300,21 @@ async function validateIndex(zipIndex, zipFilePath, quick) {
         }
 
         if (errors.collisions.length) {
-            for (let c of errors.collisions) {
+            for (const c of errors.collisions) {
                 console.warn(`Got hash collision at index ${c[0]} and ${c[1]}`);
             }
         }
     }
 
-    let rootHash = crypto.createHash('md5').update("tileset.json").digest();
-    let rootIndex = zipIndexFind(zipIndex, rootHash);
+    const rootHash = crypto.createHash('md5').update('tileset.json').digest();
+    const rootIndex = zipIndexFind(zipIndex, rootHash);
     if (rootIndex === -1) {
         valid = false;
-        console.error(`Index has no key for the root tileset`);
+        console.error('Index has no key for the root tileset');
     } else {
-        let fd = await fsExtra.open(zipFilePath, "r");
+        const fd = await fsExtra.open(zipFilePath, 'r');
         try {
-            await ReadZipLocalFileHeader(fd, zipIndex[rootIndex].offset, "tileset.json");
+            await readZipLocalFileHeader(fd, zipIndex[rootIndex].offset, 'tileset.json');
         }
         catch(err) {
             valid = false;
@@ -328,8 +327,8 @@ async function validateIndex(zipIndex, zipFilePath, quick) {
         valid = await slowValidateIndex(zipIndex, zipFilePath);
     }
 
-    console.log(`Zip index is ${valid ? "valid" : "invalid"}`);
-    console.timeEnd("validate index");
+    console.log(`Zip index is ${valid ? 'valid' : 'invalid'}`);
+    console.timeEnd('validate index');
     return valid;
 }
 
@@ -339,29 +338,23 @@ function parseIndexData(buffer) {
         return -1;
     }
     const numEntries = buffer.length / 24;
-    let index = [];
+    const index = [];
     console.log(`Zip index contains ${numEntries} entries.`);
     for (let i = 0; i < numEntries; i++) {
-        let byteOffset = i * 24;
-        let hash = buffer.slice(byteOffset, byteOffset + 16);
-        let offset = buffer.readBigUInt64LE(byteOffset + 16);
-        index.push({"md5hash": hash, "offset": offset});
+        const byteOffset = i * 24;
+        const hash = buffer.slice(byteOffset, byteOffset + 16);
+        const offset = buffer.readBigUInt64LE(byteOffset + 16);
+        index.push({'md5hash': hash, 'offset': offset});
     }
     return index;
 }
 
-// read index from a raw file
-async function readIndexData(inputFile) {
-    return fsExtra.readFile(inputFile)
-        .then(buffer => parseIndexData(buffer));
-}
-
 async function searchIndex(zipIndex, searchPath) {
-    let hashedSearchPath = crypto.createHash('md5').update(searchPath).digest();
+    const hashedSearchPath = crypto.createHash('md5').update(searchPath).digest();
     //console.log(`Searching index for ${searchPath} (${hashedSearchPath.toString('hex')})`);
-    
+
     //console.time('Search index');
-    let matchedIndex = zipIndexFind(zipIndex, hashedSearchPath);
+    const matchedIndex = zipIndexFind(zipIndex, hashedSearchPath);
     //console.log(`matchedIndex: ${matchedIndex}`);
     //console.timeEnd('Search index');
     if (matchedIndex === -1) {
@@ -369,13 +362,13 @@ async function searchIndex(zipIndex, searchPath) {
         return undefined;
     }
 
-    let entry = zipIndex[matchedIndex];
+    const entry = zipIndex[matchedIndex];
     //console.log(`Matched index: ${matchedIndex} - offset: ${entry.offset}`);
     return entry;
 }
 
 // if outputFile is not supplied, read index into memory
-async function readIndex(inputFile, outputFile, indexFilename = "@3dtilesIndex1@") {
+async function readIndex(inputFile, outputFile, indexFilename = '@3dtilesIndex1@') {
     // console.log(`Read index from ${inputFile}`);
     console.time('readIndex');
     let fd;
@@ -391,10 +384,10 @@ async function readIndex(inputFile, outputFile, indexFilename = "@3dtilesIndex1@
             return validateCentralDirectoryHeaderAndGetFileContents(fd, buffer, indexFilename);
         })
         .then(buffer => {
-            let header = parseLocalFileHeaderAndValidateFilename(buffer, indexFilename);
+            const header = parseLocalFileHeaderAndValidateFilename(buffer, indexFilename);
 
             // ok, skip past the filename and extras and we have our data
-            let dataStartOffset = ZIP_LOCAL_FILE_HEADER_STATIC_SIZE + header.filename_size + header.extra_size;
+            const dataStartOffset = ZIP_LOCAL_FILE_HEADER_STATIC_SIZE + header.filename_size + header.extra_size;
 
             const indexFileDataBuffer = buffer.slice(
                 dataStartOffset, dataStartOffset + header.comp_size);
@@ -404,9 +397,9 @@ async function readIndex(inputFile, outputFile, indexFilename = "@3dtilesIndex1@
 
             if (defined(outputFile)) {
                 return fsExtra.writeFile(outputFile, indexFileDataBuffer);
-            } else {
-                return parseIndexData(indexFileDataBuffer);
             }
+
+            return parseIndexData(indexFileDataBuffer);
         })
         .catch(err => {
             console.error(err.message);
@@ -418,14 +411,14 @@ async function readIndex(inputFile, outputFile, indexFilename = "@3dtilesIndex1@
         });
 }
 
-async function ReadZipLocalFileHeader(fd, offset, path)
+async function readZipLocalFileHeader(fd, offset, path)
 {
     const headerSize = ZIP_LOCAL_FILE_HEADER_STATIC_SIZE + path.length;
-    let headerBuffer = Buffer.alloc(headerSize);
-    //console.log(`ReadZipLocalFileHeader path: ${path} headerSize: ${headerSize} offset: ${offset}`);
-    let result = await fsExtra.read(fd, headerBuffer, 0, headerSize, Number(offset));
+    const headerBuffer = Buffer.alloc(headerSize);
+    //console.log(`readZipLocalFileHeader path: ${path} headerSize: ${headerSize} offset: ${offset}`);
+    const result = await fsExtra.read(fd, headerBuffer, 0, headerSize, Number(offset));
     //console.log(`headerBuffer: ${result.buffer}`);
-    let header = parseLocalFileHeaderAndValidateFilename(result.buffer, path);
+    const header = parseLocalFileHeaderAndValidateFilename(result.buffer, path);
     //console.log(header);
     return header;
 }
@@ -440,17 +433,17 @@ async function getIndexReader(filePath, performIndexValidation)
         }
     }
 
-    let fd = await fsExtra.open(filePath, 'r');
+    const fd = await fsExtra.open(filePath, 'r');
 
-    let readData = async (path) => {
-        let normalizedPath = util.normalizePath(path);
-        let match = await searchIndex(index, normalizedPath);
+    const readData = async (path) => {
+        const normalizedPath = util.normalizePath(path);
+        const match = await searchIndex(index, normalizedPath);
         if (match !== undefined) {
-            let header = await ReadZipLocalFileHeader(fd, match.offset, path);
-            let fileDataOffset = Number(match.offset) + ZIP_LOCAL_FILE_HEADER_STATIC_SIZE + header.filename_size + header.extra_size;
-            let fileContentsBuffer = Buffer.alloc(header.comp_size);
+            const header = await readZipLocalFileHeader(fd, match.offset, path);
+            const fileDataOffset = Number(match.offset) + ZIP_LOCAL_FILE_HEADER_STATIC_SIZE + header.filename_size + header.extra_size;
+            const fileContentsBuffer = Buffer.alloc(header.comp_size);
             //console.log(`Fetching data at offset ${fileDataOffset} size: ${header.comp_size}`);
-            let data = await fsExtra.read(fd, fileContentsBuffer, 0, header.comp_size, fileDataOffset);
+            const data = await fsExtra.read(fd, fileContentsBuffer, 0, header.comp_size, fileDataOffset);
             return data.buffer;
         }
         throw Error(path);
@@ -459,7 +452,7 @@ async function getIndexReader(filePath, performIndexValidation)
     return {
         readBinary: readData,
         readJson: async (path) => {
-            let buffer = await readData(path);
+            const buffer = await readData(path);
             return bufferToJson(buffer);
         }
     };
@@ -467,24 +460,24 @@ async function getIndexReader(filePath, performIndexValidation)
 
 async function getZipReader(filePath)
 {
-    let zipPromise = new Promise(
+    const zipPromise = new Promise(
             (resolve, reject) => {
-                let streamzip = new StreamZip({
+                const streamzip = new StreamZip({
                     file: filePath,
                     storeEntries: true
                 });
                 streamzip.on('error', (err) => {
                     //console.log(`Error: ${err}`);
                     reject(err);
-                })
+                });
                 streamzip.on('ready', () => {
                     resolve(streamzip);
                 });
             }
         )
-        .catch(() => { console.error(`Failed to read ${path.basename(filePath)} as zip archive`) });
+        .catch(() => { console.error(`Failed to read ${path.basename(filePath)} as zip archive`); });
 
-    let zip = await zipPromise;
+    const zip = await zipPromise;
     if (!zip) {
         throw Error();
     }
@@ -494,7 +487,7 @@ async function getZipReader(filePath)
             return zip.entryDataSync(path);
         },
         readJson: (path) => {
-            let buffer = zip.entryDataSync(path);
+            const buffer = zip.entryDataSync(path);
             return bufferToJson(buffer);
         }
     };
