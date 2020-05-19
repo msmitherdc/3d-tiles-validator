@@ -1,4 +1,14 @@
 'use strict';
+
+/*----------------------------------------------------------------------------
+ * Vricon Systems AB PROPRIETARY
+ * Copyright (C) Vricon Systems AB
+ * Use or disclosure of data contained in this document is subject to
+ * the requirements at the end of this document.
+ *
+ * Classification : COMPANY CONFIDENTIAL
+*/
+
 const Cesium = require('cesium');
 const fsExtra = require('fs-extra');
 const path = require('path');
@@ -489,3 +499,22 @@ async function getZipReader(filePath)
         }
     };
 }
+
+/*-----------------------------------------------------------------------------
+ * RIGHT OF USE. This document may neither be passed on to third parties or
+ * reproduced nor its contents utilized or divulged without the expressed prior
+ * permission of the originator, Vricon Systems AB, or any other person
+ * having rights to it. In case of contravention, the Purchaser shall be liable
+ * for damages.
+ *
+ * VRICON SYSTEMS AB PROPRIETARY. This document contains proprietary
+ * information and may only be used by the recipient for the prescribed purposes
+ * and may neither be reproduced in any form nor the document itself or its
+ * content divulged to third parties without our expressed prior written
+ * permission.
+ *
+ * COPYRIGHT. (C) (Vricon Systems AB; All rights reserved; Printed
+ * in Sweden)
+ *
+ *------------------------------------------------------------------------------
+ */
