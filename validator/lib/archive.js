@@ -64,7 +64,7 @@ async function validateCentralDirectoryHeaderAndGetFileContents(fd, buffer, expe
     const header = {};
     header.signature = buffer.readUInt32LE(0);
     if (header.signature !== ZIP_START_OF_CENTRAL_DIRECTORY_HEADER_SIG) {
-        throw Error(`Bad central directory file header signature: ${header.signature}`);
+        throw Error(`Bad central directory file header signature: 0x${header.signature.toString(16)}`);
     }
     header.version_madeby = buffer.readUInt16LE(4);
     header.version_needed = buffer.readUInt16LE(6);
@@ -141,7 +141,7 @@ function parseLocalFileHeaderAndValidateFilename(buffer, expectedFilename)
     const header = {};
     header.signature = buffer.readUInt32LE(0);
     if (header.signature !== 0x04034b50) {
-        throw Error(`Bad local file header: ${header.signature}`);
+        throw Error(`Bad local file header signature: 0x${header.signature.toString(16)}`);
     }
 
     header.version_needed = buffer.readUInt16LE(4);
@@ -239,14 +239,14 @@ function slowValidateIndex(zipIndex, zipFilePath) {
                 storeEntries: false
             });
             zip.on('error', (err) => {
-                reject(err);
+                throw err;
             });
             zip.on('ready', () => {
                 // console.log(`Total zip entries: ${zip.entriesCount} file entries: ${zipFileEntriesCount}`);
                 zip.close();
 
                 if (zipIndex.length !== zipFileEntriesCount) {
-                    reject(`Zip index has too few entries, expected ${zipFileEntriesCount} but got ${zipIndex.length}.`);
+                    throw Error(`Zip index has too few entries, expected ${zipFileEntriesCount} but got ${zipIndex.length}.`);
                 }
 
                 resolve(true);
@@ -258,11 +258,11 @@ function slowValidateIndex(zipIndex, zipFilePath) {
                     const hash = crypto.createHash('md5').update(entry.name).digest();
                     const index = zipIndexFind(zipIndex, hash);
                     if (index === -1) {
-                        reject(`${entry.name} - ${hash} not found in index.`);
+                        throw Error(`${entry.name} - ${hash} not found in index.`);
                     } else {
                         const indexEntryOffset = zipIndex[index].offset;
-                        if (entry.offset !== indexEntryOffset) {
-                            reject(`${entry.name} - ${hash} had incorrect offset ${indexEntryOffset}, expected ${entry.offset}`);
+                        if (Number(entry.offset) !== Number(indexEntryOffset)) {
+                            throw Error(`${entry.name} - ${hash} had incorrect offset ${indexEntryOffset}, expected ${entry.offset}`);
                         }
                     }
                 }
@@ -270,7 +270,7 @@ function slowValidateIndex(zipIndex, zipFilePath) {
         }
     )
     .catch(err => {
-        /* console.error(`Zip index validation failed: ${err}`); */
+        console.error(`Zip index validation failed: ${err}`);
         return false;
     });
 }
@@ -318,7 +318,7 @@ async function validateIndex(zipIndex, zipFilePath, quick) {
         }
         catch(err) {
             valid = false;
-            console.error(err);
+            console.error(`${err.message}`);
         }
         fsExtra.close(fd);
     }
