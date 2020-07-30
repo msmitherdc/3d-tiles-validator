@@ -10,6 +10,7 @@ var isGzipped = require('./isGzipped');
 var isTile = require('./isTile');
 var sqlite3 = require('sqlite3');
 var unzipper = require('unzipper')
+var fs = require('fs');
 
 var defaultValue = Cesium.defaultValue;
 var defined = Cesium.defined;
