@@ -22,6 +22,9 @@ var isGzipped = require('../lib/isGzipped');
 var optimizeGlb = require('../lib/optimizeGlb');
 var runPipeline = require('../lib/runPipeline');
 var tilesetToDatabase = require('../lib/tilesetToDatabase');
+var ziptilesetToDatabase = require('../lib/ziptilesetToDatabase');
+var ziptilesetToS3Database = require('../lib/ziptilesetToS3Database');
+
 
 var zlibGunzip = Promise.promisify(zlib.gunzip);
 var zlibGzip = Promise.promisify(zlib.gzip);
@@ -81,6 +84,8 @@ var argv = yargs
     })
     .command('pipeline', 'Execute the input pipeline JSON file.')
     .command('tilesetToDatabase', 'Create a sqlite database for a tileset.')
+    .command('ziptilesetToDatabase', 'Create a sqlite database for a zipped tileset.')
+    .command('ziptilesetToS3Database', 'Create a s3 sqlite database for a zipped tileset.')
     .command('databaseToTileset', 'Unpack a tileset database to a tileset folder.')
     .command('glbToB3dm', 'Repackage the input glb as a b3dm with a basic header.')
     .command('glbToI3dm', 'Repackage the input glb as a i3dm with a basic header.')
@@ -167,6 +172,10 @@ function runCommand(command, input, output, force, argv) {
         return readAndOptimizeI3dm(input, output, force, optionArgs);
     } else if (command === 'tilesetToDatabase') {
         return convertTilesetToDatabase(input, output, force);
+    } else if (command === 'ziptilesetToDatabase') {
+        return convertzipTilesetToDatabase(input, output, force);
+    } else if (command === 'ziptilesetToS3Database') {
+        return convertzipTilesetToS3Database(input, output, force);                
     } else if (command === 'databaseToTileset') {
         return convertDatabaseToTileset(input, output, force);
     }
@@ -276,10 +285,26 @@ function getStage(stageName, argv) {
 }
 
 function convertTilesetToDatabase(inputDirectory, outputPath, force) {
-    outputPath = defaultValue(outputPath, path.join(path.dirname(inputDirectory), path.basename(inputDirectory) + '.3dtiles'));
+    outputPath = defaultValue(outputPath, path.join(path.dirname(inputDirectory), path.basename(inputDirectory) + '.3dtiles.db'));
     return checkFileOverwritable(outputPath, force)
         .then(function() {
             return tilesetToDatabase(inputDirectory, outputPath);
+        });
+}
+
+function convertzipTilesetToDatabase(inputZipFile, outputPath, force) {
+    outputPath = defaultValue(outputPath, path.join(path.dirname(inputZipFile), path.basename(inputZipFile) + '.3dtiles.db'));
+    return checkFileOverwritable(outputPath, force)
+        .then(function() {
+            return ziptilesetToDatabase(inputZipFile, outputPath);
+        });
+}
+
+function convertzipTilesetToS3Database(inputZipFile, outputPath, force) {
+    outputPath = defaultValue(outputPath, path.join(path.dirname(inputZipFile), path.basename(inputDirectory) + '.3dtiles.db'));
+    return checkFileOverwritable(outputPath, force)
+        .then(function() {
+            return ziptilesetToS3Database(inputZipFile, outputPath);
         });
 }
 
