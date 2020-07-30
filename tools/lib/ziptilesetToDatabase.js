@@ -54,16 +54,19 @@ function tilesetToDatabase(inputZipFile, outputFile) {
             //Build the collection of file paths to be inserted.
             var filePaths = [];
             // var stream = klaw(inputDirectory);
-            var stream = fs.createReadStream(inputZipFile)
-            stream.on('readable', function () {
-                var filePath = stream.read();
-                while (defined(filePath)) {
-                    if (filePath.stats.isFile()) {
-                        filePaths.push(filePath.path);
-                    }
-                    filePath = stream.read();
+            fs.createReadStream(inputZipFile)
+              .pipe(unzipper.Parse())
+              .pipe(stream.Transform({
+                objectMode: true,
+                transform: function(entry,e,cb) {
+                    const fileName = entry.path;
+                    const type = entry.type; 
+                    const size = entry.vars.uncompressedSize;
+                    if (type.isFile()) {
+                        filePaths.push(entry);
+                    }   
                 }
-            });
+            }));
 
             return new Promise(function (resolve, reject) {
                 stream.on('error', reject);
