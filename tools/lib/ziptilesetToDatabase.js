@@ -70,8 +70,8 @@ function tilesetToDatabase(inputZipFile, outputFile) {
             }));
 
             return new Promise(function (resolve, reject) {
-                stream.on('error', reject);
-                stream.on('end', function () {
+                entry.on('error', reject);
+                entry.on('end', function () {
                     resolve(filePaths);
                 });
             });
