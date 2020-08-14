@@ -8,6 +8,8 @@ const readTile = require('../lib/readTile');
 const readTileset = require('../lib/readTileset');
 const validateTile = require('../lib/validateTile');
 const validateTileset = require('../lib/validateTileset');
+const archive = require('../lib/archive');
+const utility = require('../lib/utility');
 
 const defined = Cesium.defined;
 
@@ -45,6 +47,12 @@ const argv = yargs
             describe: 'Only validate tileset files, for quick shallow validation.',
             default: false,
             type: 'boolean'
+        },
+        validateIndex: {
+            alias: 'vi',
+            describe: 'Validate the index file.',
+            default: true,
+            type: 'boolean'
         }
     }).parse(args);
 
@@ -57,6 +65,31 @@ async function validate(argv) {
         readBinary: readTile,
         readJson: readTileset
     };
+
+    if (path.extname(filePath) === '.3tz') {
+        try {
+            reader = await archive.getIndexReader(filePath, argv.validateIndex);
+            filePath = utility.normalizePath(argv.innerPath);
+        }
+        catch(err) {
+            console.error(`Failed to read ${path.basename(filePath)} as indexed archive, attempting to read as plain zip`);
+            try {
+                reader = await archive.getZipReader(filePath);
+                filePath = argv.innerPath;
+            }
+            catch(err) {
+                return;
+            }
+        }
+    } else if (path.extname(filePath) === '.zip') {
+        try {
+            reader = await archive.getZipReader(filePath);
+            filePath = utility.normalizePath(argv.innerPath);
+        }
+        catch(err) {
+            return;
+        }
+    }
 
     try {
         if (isTile(filePath)) {
