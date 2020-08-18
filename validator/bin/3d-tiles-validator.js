@@ -89,6 +89,14 @@ async function validate(argv) {
         catch(err) {
             return;
         }
+        } else if (path.extname(filePath) === '.db') {
+            try {
+                reader = await sqlite.getDBReader(filePath);
+                filePath = utility.normalizePath(argv.innerPath);
+            }
+            catch(err) {
+                return;
+            }
     }
 
     try {
