@@ -3,7 +3,7 @@
 
 const Cesium = require('cesium');
 const path = require('path');
-const Database = require('better-sqlite3');
+const Database = require('sqlite3');
 const bufferToJson = require('./bufferToJson');
 const defined = Cesium.defined;
 
@@ -17,9 +17,7 @@ async function getDBReader(filePath)
     const dbPromise = new Promise(
             (resolve, reject) => {
                 //const db = new Database('foobar.db', { verbose: console.log });
-                const db = new Database({
-                    file: filePath
-                });
+                const db = new Database(filePath);
                 db.on('error', (err) => {
                     //console.log(`Error: ${err}`);
                     reject(err);
